@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>紋章学フラッシュカード</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-stone-900 min-h-screen flex flex-col items-center justify-center p-4">
+<div class="w-full max-w-2xl">
+  <h1 class="text-3xl font-bold text-amber-400 text-center mb-2">紋章学フラッシュカード</h1>
+  <p class="text-stone-400 text-center mb-6 text-sm">Heraldic Tinctures & Charges — Blazon暗記</p>
+
+  <div class="flex justify-center gap-6 mb-6 text-sm">
+    <span class="text-green-400">✓ 正解: <span id="correct">0</span></span>
+    <span class="text-red-400">✗ 不正解: <span id="incorrect">0</span></span>
+    <span class="text-amber-300">残り: <span id="remaining">0</span></span>
+  </div>
+
+  <div id="card" class="bg-stone-800 rounded-2xl shadow-2xl border border-amber-700 cursor-pointer min-h-64 flex flex-col items-center justify-center p-8 select-none transition-all duration-300" onclick="flipCard()">
+    <div id="front" class="text-center">
+      <div id="symbol" class="text-6xl mb-4"></div>
+      <div id="term" class="text-3xl font-bold text-amber-300"></div>
+      <p class="text-stone-500 mt-4 text-sm">クリックで意味を確認</p>
+    </div>
+    <div id="back" class="text-center hidden">
+      <div id="answer" class="text-2xl font-bold text-white mb-3"></div>
+      <div id="description" class="text-stone-300 text-sm max-w-sm"></div>
+    </div>
+  </div>
+
+  <div id="controls" class="hidden mt-6 flex justify-center gap-4">
+    <button onclick="markResult(true)" class="bg-green-700 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-bold transition">✓ 正解</button>
+    <button onclick="markResult(false)" class="bg-red-700 hover:bg-red-600 text-white px-8 py-3 rounded-xl font-bold transition">✗ 不正解</button>
+  </div>
+
+  <div class="mt-6 flex justify-center gap-3">
+    <button onclick="resetDeck()" class="bg-stone-700 hover:bg-stone-600 text-stone-300 px-4 py-2 rounded-lg text-sm transition">リセット</button>
+    <button onclick="shuffleDeck()" class="bg-stone-700 hover:bg-stone-600 text-stone-300 px-4 py-2 rounded-lg text-sm transition">シャッフル</button>
+  </div>
+
+  <div id="complete" class="hidden text-center mt-8">
+    <p class="text-2xl text-amber-400 font-bold">完了！</p>
+    <p id="result-text" class="text-stone-300 mt-2"></p>
+    <button onclick="resetDeck()" class="mt-4 bg-amber-600 hover:bg-amber-500 text-white px-6 py-2 rounded-xl font-bold transition">もう一度</button>
+  </div>
+</div>
+
+<script>
+const cards = [
+  { term: 'Or', symbol: '🟡', answer: '金色（ゴールド）', desc: '紋章における金または黄色。高貴さ・知恵・栄光の象徴。' },
+  { term: 'Argent', symbol: '⬜', answer: '銀色（シルバー）', desc: '紋章における銀または白色。純潔・誠実・平和の象徴。' },
+  { term: 'Gules', symbol: '🟥', answer: '赤色', desc: '紋章の赤。勇敢さ・軍事力・力の象徴。ハッチングは垂直線。' },
+  { term: 'Azure', symbol: '🟦', answer: '青色', desc: '紋章の青。真実・貞節・忠誠の象徴。ハッチングは水平線。' },
+  { term: 'Sable', symbol: '⬛', answer: '黒色', desc: '紋章の黒。哀悼・節度・知恵の象徴。ハッチングは格子線。' },
+  { term: 'Vert', symbol: '🟩', answer: '緑色', desc: '紋章の緑。希望・喜び・忠誠の象徴。ハッチングは対角線（左）。' },
+  { term: 'Purpure', symbol: '🟪', answer: '紫色', desc: '紋章の紫。王権・正義・節制の象徴。ハッチングは対角線（右）。' },
+  { term: 'Lion Rampant', symbol: '🦁', answer: 'ライオン（後脚立ち）', desc: '後ろ脚で立つライオン。勇敢さ・強さ・王権の象徴。イングランド紋章の代表的図柄。' },
+  { term: 'Eagle Displayed', symbol: '🦅', answer: 'ワシ（翼展開）', desc: '両翼を広げた鷹。権力・自由・卓越の象徴。神聖ローマ帝国の紋章。' },
+  { term: 'Fleur-de-lis', symbol: '⚜️', answer: 'フルール・ド・リス', desc: '様式化されたユリの花。フランス王家の象徴。純潔・栄光の意味。' },
+  { term: 'Cross Patée', symbol: '✚', answer: 'パテー十字', desc: '端が広がった十字。テンプル騎士団・マルタ騎士団の紋章。' },
+  { term: 'Chevron', symbol: '🔺', answer: 'シェヴロン（山形）', desc: '逆V字型の図柄。建築・保護の象徴。家紋の基本パターン。' },
+  { term: 'Bend', symbol: '◿', answer: 'ベンド（斜め帯）', desc: '盾を左上から右下に横切る帯。名誉の象徴。' },
+  { term: 'Fess', symbol: '🟫', answer: 'フェス（横帯）', desc: '盾の中央を横に横切る帯。名誉と守護の象徴。' },
+  { term: 'Passant', symbol: '🐾', answer: 'パサント（歩行）', desc: '動物が歩いている姿勢。右足を上げた横向きポーズ。' },
+  { term: 'Rampant', symbol: '⬆️', answer: 'ランパント（後脚立ち）', desc: '動物が後ろ足で立ち上がった姿勢。最も一般的な紋章の姿勢。' },
+  { term: 'Regardant', symbol: '👁️', answer: 'リガーダント（振り向き）', desc: '動物が後ろを振り向いている姿勢。' },
+  { term: 'Barry', symbol: '🏳️', answer: 'バリー（横縞）', desc: '盾が水平の縞に分割されたパターン。' },
+  { term: 'Paly', symbol: '🏁', answer: 'ペイリー（縦縞）', desc: '盾が垂直の縞に分割されたパターン。' },
+  { term: 'Quarterly', symbol: '🔲', answer: 'クォータリー（四分割）', desc: '盾が4つの部分に分割されたパターン。複数家紋の合成に使用。' },
+];
+
+let deck = [];
+let currentIdx = 0;
+let flipped = false;
+let scores = { correct: 0, incorrect: 0 };
+
+function loadScores() {
+  const s = localStorage.getItem('heraldry_scores');
+  if (s) scores = JSON.parse(s);
+  updateScoreDisplay();
+}
+
+function saveScores() {
+  localStorage.setItem('heraldry_scores', JSON.stringify(scores));
+}
+
+function updateScoreDisplay() {
+  document.getElementById('correct').textContent = scores.correct;
+  document.getElementById('incorrect').textContent = scores.incorrect;
+}
+
+function shuffleDeck() {
+  deck = [...cards].sort(() => Math.random() - 0.5);
+  currentIdx = 0;
+  flipped = false;
+  document.getElementById('complete').classList.add('hidden');
+  showCard();
+}
+
+function resetDeck() {
+  scores = { correct: 0, incorrect: 0 };
+  saveScores();
+  updateScoreDisplay();
+  shuffleDeck();
+}
+
+function showCard() {
+  if (currentIdx >= deck.length) {
+    document.getElementById('card').classList.add('hidden');
+    document.getElementById('controls').classList.add('hidden');
+    document.getElementById('complete').classList.remove('hidden');
+    const p = document.getElementById('result-text');
+    p.textContent = `正解 ${scores.correct} / 不正解 ${scores.incorrect}`;
+    return;
+  }
+  const c = deck[currentIdx];
+  document.getElementById('symbol').textContent = c.symbol;
+  document.getElementById('term').textContent = c.term;
+  document.getElementById('answer').textContent = c.answer;
+  document.getElementById('description').textContent = c.desc;
+  document.getElementById('front').classList.remove('hidden');
+  document.getElementById('back').classList.add('hidden');
+  document.getElementById('controls').classList.add('hidden');
+  document.getElementById('remaining').textContent = deck.length - currentIdx;
+  flipped = false;
+}
+
+function flipCard() {
+  if (flipped) return;
+  flipped = true;
+  document.getElementById('front').classList.add('hidden');
+  document.getElementById('back').classList.remove('hidden');
+  document.getElementById('controls').classList.remove('hidden');
+}
+
+function markResult(correct) {
+  if (correct) scores.correct++;
+  else scores.incorrect++;
+  saveScores();
+  updateScoreDisplay();
+  currentIdx++;
+  showCard();
+}
+
+loadScores();
+shuffleDeck();
+</script>
+</body>
+</html>
